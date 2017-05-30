@@ -1,4 +1,77 @@
 Add-Type -AssemblyName PresentationFramework
+function Set-Console
+{
+  param(
+    [switch]$show,
+    [switch]$hide
+  )
+  Add-Type -Name Window -Namespace Console -MemberDefinition '
+    [DllImport("Kernel32.dll")]
+    public static extern IntPtr GetConsoleWindow();
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);
+  '
+  $consolePtr = [Console.Window]::GetConsoleWindow()
+  if($show){
+    [Console.Window]::ShowWindow($consolePtr, 1)
+  }
+  if($hide){
+    [Console.Window]::ShowWindow($consolePtr, 0)
+  }
+}
+function Get-MyPrinter
+{
+  Get-Printer | select Name | ForEach-Object {$window.lv2.addchild($_)}
+}
+function Set-WindowPosition
+{
+  $window.Left = $([System.Windows.SystemParameters]::WorkArea.Width-$window.Width)
+  $window.Top = $([System.Windows.SystemParameters]::WorkArea.Height-$window.Height)
+}
+function Convert-XAMLtoWindow
+{
+  param
+  (
+    [Parameter(Mandatory)]
+    [string]
+    $XAML,
+    [switch]
+    $PassThru
+  )
+  $reader = [XML.XMLReader]::Create([IO.StringReader]$XAML)
+  $result = [Windows.Markup.XAMLReader]::Load($reader)
+  
+  [xml]$XmlXaml = $xaml
+  $NamedElement = $XmlXaml.SelectNodes("//*[@Name]")
+  foreach($Name in $NamedElement){
+    $result | Add-Member NoteProperty -Name $Name.Name -Value $result.FindName($Name.Name) -Force
+  }
+  if ($PassThru){
+    $result
+  }
+  else{
+    $null = $window.Dispatcher.InvokeAsync{
+      $result = $window.ShowDialog()
+      Set-Variable -Name result -Value $result -Scope 1
+    }.Wait()
+    $result
+  }
+}
+function Show-WPFWindow
+{
+  param
+  (
+    [Parameter(Mandatory)]
+    [Windows.Window]
+    $Window
+  )
+  $result = $null
+  $null = $window.Dispatcher.InvokeAsync{
+    $result = $window.ShowDialog()
+    Set-Variable -Name result -Value $result -Scope 1
+  }.Wait()
+  $result
+}
 $xaml = @'
 <Window
    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -50,68 +123,17 @@ $xaml = @'
     </Grid>
 </Window>
 '@
-function Convert-XAMLtoWindow
-{
-  param
-  (
-    [Parameter(Mandatory)]
-    [string]
-    $XAML,
-    [string[]]
-    $NamedElement=$null,
-    [switch]
-    $PassThru
-  )
-  $reader = [XML.XMLReader]::Create([IO.StringReader]$XAML)
-  $result = [Windows.Markup.XAMLReader]::Load($reader)
-  foreach($Name in $NamedElement){
-    $result | Add-Member NoteProperty -Name $Name -Value $result.FindName($Name) -Force
-  }
-  if ($PassThru){
-    $result
-  }
-  else{
-    $null = $window.Dispatcher.InvokeAsync{
-      $result = $window.ShowDialog()
-      Set-Variable -Name result -Value $result -Scope 1
-    }.Wait()
-    $result
-  }
-}
-function Show-WPFWindow
-{
-  param
-  (
-    [Parameter(Mandatory)]
-    [Windows.Window]
-    $Window
-  )
-  $result = $null
-  $null = $window.Dispatcher.InvokeAsync{
-    $result = $window.ShowDialog()
-    Set-Variable -Name result -Value $result -Scope 1
-  }.Wait()
-  $result
-}
 
-$window = Convert-XAMLtoWindow -XAML $xaml -NamedElement 'button', 'button2', 'Eigenschaften', 'lv1', 'lv2', 'MyEigenschaften', 'MyTrennen', 'tabControl', 'textBox', 'Trennen', 'Verbinden' -PassThru
+$window = Convert-XAMLtoWindow -XAML $xaml -PassThru
 
-function Get-MyPrinter
-{
-  Get-Printer | select Name | ForEach-Object {$window.lv2.addchild($_)}
-}
-
-
-function Set-WindowPosition
-{
-  $window.Left = $([System.Windows.SystemParameters]::WorkArea.Width-$window.Width)
-  $window.Top = $([System.Windows.SystemParameters]::WorkArea.Height-$window.Height)
-}
-
-$Window.Add_ContentRendered({    
-  Set-WindowPosition
-  Get-MyPrinter
+$Window.Add_ContentRendered({  
+    Set-WindowPosition
+    Get-MyPrinter
 })
 
 
+Set-Console -hide
 $result = Show-WPFWindow -Window $window
+if($Host.Name -notlike '*ISE*'){
+  Stop-Process -Id $PID
+}
