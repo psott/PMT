@@ -21,12 +21,12 @@ function Set-Console
 }
 function Get-MyPrinter
 {
-  Get-Printer | select Name | ForEach-Object {$window.lv2.addchild($_)}
+  Get-Printer | Select-Object Name | ForEach-Object {$window.lv2.addchild($_)}
 }
 function Set-WindowPosition
 {
-  $window.Left = $([System.Windows.SystemParameters]::WorkArea.Width-$window.Width)
-  $window.Top = $([System.Windows.SystemParameters]::WorkArea.Height-$window.Height)
+  $window.Left = $([Windows.SystemParameters]::WorkArea.Width-$window.Width)
+  $window.Top = $([Windows.SystemParameters]::WorkArea.Height-$window.Height)
 }
 function Convert-XAMLtoWindow
 {
@@ -34,28 +34,13 @@ function Convert-XAMLtoWindow
   (
     [Parameter(Mandatory)]
     [string]
-    $XAML,
-    [switch]
-    $PassThru
+    $XAML
   )
   $reader = [XML.XMLReader]::Create([IO.StringReader]$XAML)
   $result = [Windows.Markup.XAMLReader]::Load($reader)
-  
   [xml]$XmlXaml = $xaml
-  $NamedElement = $XmlXaml.SelectNodes("//*[@Name]")
-  foreach($Name in $NamedElement){
-    $result | Add-Member NoteProperty -Name $Name.Name -Value $result.FindName($Name.Name) -Force
-  }
-  if ($PassThru){
-    $result
-  }
-  else{
-    $null = $window.Dispatcher.InvokeAsync{
-      $result = $window.ShowDialog()
-      Set-Variable -Name result -Value $result -Scope 1
-    }.Wait()
-    $result
-  }
+  $XmlXaml.SelectNodes("//*[@Name]") | ForEach-Object{$result | Add-Member NoteProperty -Name $_.Name -Value $result.FindName($_.Name) -Force}
+  $result
 }
 function Show-WPFWindow
 {
@@ -71,6 +56,11 @@ function Show-WPFWindow
     Set-Variable -Name result -Value $result -Scope 1
   }.Wait()
   $result
+}
+function Start-Programm
+{
+  Set-Console -hide
+  Set-WindowPosition
 }
 $xaml = @'
 <Window
@@ -92,7 +82,7 @@ $xaml = @'
                         </ListView.ContextMenu>
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="Name" DisplayMemberBinding ="{Binding 'Name'}" Width="120"/>
+                                <GridViewColumn Header="Name" DisplayMemberBinding ="{Binding 'Name'}" Width="250"/>
                                 <GridViewColumn Header="Beschreibung" DisplayMemberBinding ="{Binding 'Beschreibung'}" Width="120"/>
                             </GridView>
                         </ListView.View>
@@ -111,7 +101,7 @@ $xaml = @'
                         </ListView.ContextMenu>
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="Name" DisplayMemberBinding ="{Binding 'Name'}" Width="120"/>
+                                <GridViewColumn Header="Name" DisplayMemberBinding ="{Binding 'Name'}" Width="250"/>
                                 <GridViewColumn Header="Beschreibung" DisplayMemberBinding ="{Binding 'Beschreibung'}" Width="120"/>
                             </GridView>
                         </ListView.View>
@@ -124,15 +114,14 @@ $xaml = @'
 </Window>
 '@
 
-$window = Convert-XAMLtoWindow -XAML $xaml -PassThru
+$window = Convert-XAMLtoWindow -XAML $xaml #-PassThru
 
-$Window.Add_ContentRendered({  
-    Set-WindowPosition
+$Window.Add_ContentRendered{  
     Get-MyPrinter
-})
+}
 
 
-Set-Console -hide
+Start-Programm
 $result = Show-WPFWindow -Window $window
 if($Host.Name -notlike '*ISE*'){
   Stop-Process -Id $PID
