@@ -1,2 +1,2 @@
 # PMT
-Printer Mapoing Tool
+Printer Mapping Tool
